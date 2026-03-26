@@ -1,0 +1,4 @@
+node_modules/
+.env
+*.traineddata
+.DS_Store
