@@ -7,7 +7,7 @@ const anonScanLimiter = rateLimit({
   handler: (req, res, next) => {
     res.status(429).json({
       success: false,
-      message: "Kamu telah mencapai batas scan gratis. Silakan login untuk scan sepuasnya!",
+      message: "You have reached the free scan limit. Please login for unlimited scans!",
       triggerLogin: true // Flag untuk FE agar munculkan Modal Login
     });
   }

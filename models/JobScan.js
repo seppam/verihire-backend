@@ -2,10 +2,10 @@ const mongoose = require('mongoose');
 
 const JobScanSchema = new mongoose.Schema({
   // 1. Relasi User (Opsional untuk Guest/Anonymous)
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: false 
+  user: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User'
+    // required dihapus agar guest bisa masuk tanpa diusir
   },
   
   // 2. Data Input & Metadata
@@ -16,27 +16,24 @@ const JobScanSchema = new mongoose.Schema({
     default: 'text' 
   },
   
-  // URL asli jika inputnya berupa link (sangat berguna untuk audit/history)
   url: { 
     type: String, 
     trim: true,
-    required: function() { return this.inputType === 'url'; } // Wajib jika type-nya url
+    required: function() { return this.inputType === 'url'; } 
   },
 
-  // Teks hasil ekstraksi (Scraping/OCR) atau input manual
   content: { 
     type: String, 
     required: true 
   },
 
-  // Field Statistik (Source)
   source: {
     type: String,
     enum: ['whatsapp', 'telegram', 'instagram', 'facebook', 'linkedin', 'other'],
     default: 'other' 
   },
   
-  // 3. Hasil Analisis AI (Struktur Object)
+  // 3. Hasil Analisis AI
   analysis: {
     score: { 
       type: Number, 
@@ -53,20 +50,14 @@ const JobScanSchema = new mongoose.Schema({
     recommendation: { 
       type: String 
     }
-  },
-
-  // 4. Timestamps
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
   }
 }, {
-  // Menambahkan timestamps otomatis (updatedAt) jika diperlukan di masa depan
+  // Mongoose akan otomatis membuat field createdAt dan updatedAt
   timestamps: true 
 });
 
-// Indexing untuk mempercepat query berdasarkan user atau source di dashboard
-JobScanSchema.index({ userId: 1, createdAt: -1 });
+// 4. Indexing (BUG FIXED: Diubah dari userId menjadi user)
+JobScanSchema.index({ user: 1, createdAt: -1 });
 JobScanSchema.index({ source: 1 });
 
 module.exports = mongoose.model('JobScan', JobScanSchema);

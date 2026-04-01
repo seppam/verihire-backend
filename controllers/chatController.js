@@ -7,8 +7,7 @@ exports.getChatResponse = catchAsync(async (req, res) => {
     const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
 
     if (!message) {
-        const errorMsg = lang === 'id' ? "Pesan tidak boleh kosong." : "Message cannot be empty.";
-        return res.status(400).json({ success: false, message: errorMsg });
+        return res.status(400).json({ success: false, message: "Message cannot be empty." });
     }
 
     const model = genAI.getGenerativeModel({ 

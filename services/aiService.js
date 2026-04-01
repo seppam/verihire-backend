@@ -7,19 +7,11 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const extractTextFromUrl = async (url, lang = 'en') => {
     const msg = {
-        en: { 
-            denied: "Access denied by the website. Please use Image or Text scan.",
-            timeout: "Connection timeout. The website is too slow.",
-            failed: "Failed to extract text from the link.",
-            empty: "The website content is too short or unreadable."
-        },
-        id: { 
-            denied: "Akses ditolak situs asal. Gunakan metode scan Gambar atau Teks.",
-            timeout: "Waktu koneksi habis. Situs tujuan terlalu lambat.",
-            failed: "Gagal mengambil teks dari link tersebut.",
-            empty: "Konten website terlalu sedikit atau tidak bisa dibaca."
-        }
-    }[lang === 'id' ? 'id' : 'en'];
+        denied: "Access denied by the website. Please use Image or Text scan.",
+        timeout: "Connection timeout. The website is too slow.",
+        failed: "Failed to extract text from the link.",
+        empty: "The website content is too short or unreadable."
+    };
 
     try {
         const { data } = await axios.get(url, { 
@@ -45,34 +37,51 @@ const extractTextFromImage = async (fileBuffer, lang = 'en') => {
     try {
         const { data: { text } } = await Tesseract.recognize(fileBuffer, 'ind+eng');
         if (!text || text.trim().length === 0) {
-            throw new Error(lang === 'id' ? "Teks tidak ditemukan dalam gambar." : "No text found in the image.");
+            throw new Error("No text found in the image.");
         }
         return text;
     } catch (error) {
-        throw new Error(lang === 'id' ? "Gagal memproses gambar." : "Failed to process image.");
+        throw new Error("Failed to process image.");
     }
 };
 
 const analyzeContent = async (text, lang = 'en') => {
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        
+        // PROMPT TUNING: Kita beri persona, rubrik, dan toleransi OCR
         const prompt = `
-            Analyze this job vacancy: "${text}"
-            Response Language: ${lang === 'id' ? 'Indonesian' : 'English'}.
+            You are an expert HR Fraud Investigator. Your job is to analyze job vacancy texts and detect scams.
+            Note: The text below is extracted via OCR from an image, so please tolerate and infer meaning from typos or garbled words.
+
+            TEXT TO ANALYZE: 
+            "${text}"
+
+            ANALYSIS RUBRIC:
+            - "High Risk": Mentions upfront payments/deposits, uses personal emails (e.g., @gmail, @yahoo) for supposedly large corporate roles, guarantees immediate hiring, or offers highly unrealistic salaries for entry-level tasks (e.g., liking posts, simple admin).
+            - "Suspicious": Vague job descriptions, overly urgent tone, missing company details, or poorly structured contact info.
+            - "Legit": Clear role, realistic requirements, standard application process, professional corporate contact info.
+
+            Response Language MUST BE: ${lang === 'id' ? 'Indonesian' : 'English'}.
             
-            Return ONLY a pure JSON object:
+            Return ONLY a pure JSON object with no markdown formatting, using this exact structure:
             {
-                "score": 0-100,
-                "verdict": "Legit" | "Suspicious" | "High Risk",
-                "flags": ["reason 1", "reason 2"],
-                "recommendation": "advice"
+                "score": <number between 0-100. 0-40 is High Risk, 41-70 is Suspicious, 71-100 is Legit>,
+                "verdict": "<strictly choose one: 'Legit', 'Suspicious', or 'High Risk'>",
+                "flags": ["<array of specific suspicious points found in the text. Leave empty if Legit>"],
+                "recommendation": "<1-2 sentences of actionable advice based on the verdict>"
             }
         `;
+
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        return JSON.parse(response.text().replace(/```json|```/g, "").trim());
+        
+        // Membersihkan potensi markdown (```json ... ```) dari output Gemini
+        const rawText = response.text().replace(/```json|```/gi, "").trim();
+        return JSON.parse(rawText);
     } catch (error) {
-        throw new Error(lang === 'id' ? "Analisis AI gagal." : "AI analysis failed.");
+        console.error("AI Analysis Error:", error); // Berguna buat debugging di terminal
+        throw new Error("AI analysis failed.");
     }
 };
 
