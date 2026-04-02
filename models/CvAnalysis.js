@@ -25,7 +25,8 @@ const cvAnalysisSchema = new mongoose.Schema({
       improved: String,
       reason: String,
       _id: false
-    }]
+    }],
+    jobRecommendations: [{ type: String }]
   }
 }, { timestamps: true });
 

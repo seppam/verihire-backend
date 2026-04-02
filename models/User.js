@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const validator = require('validator');
 
 const userSchema = new mongoose.Schema({
-  name: {
+  username: {
     type: String,
     required: [true, 'Name is required'],
     trim: true
@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: 8,
     select: false // Agar password tidak ikut terbawa saat query find()
+  },
+  avatar: { 
+    type: String,
+    default: "" // Default-nya string kosong.
   },
   role: {
     type: String,

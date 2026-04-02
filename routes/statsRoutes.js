@@ -1,8 +1,9 @@
 const express = require('express');
-const router = express.Router();
 const statsController = require('../controllers/statsController');
 
-// Endpoint: GET /api/stats
-router.get('/', statsController.getGeneralStats);
+const router = express.Router();
+
+// PUBLIC ROUTE: Siapapun (termasuk landing page tanpa login) bisa akses data ini
+router.get('/public', statsController.getLandingPageStats);
 
 module.exports = router;
