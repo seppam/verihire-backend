@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const mongoSanitize = require('express-mongo-sanitize'); 
+// const mongoSanitize = require('express-mongo-sanitize'); 
 const errorHandler = require("./middlewares/errorHandler"); 
 
 const app = express();
