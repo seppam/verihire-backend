@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const validator = require('validator');
 const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
+const sendEmail = require('../utils/sendEmail');
+const crypto = require('crypto');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -11,18 +13,38 @@ const signToken = (id) => {
 
 // --- 1. REGISTER ---
 exports.register = catchAsync(async (req, res, next) => {
-  // UBAH 'name' JADI 'username' DI SINI
   const { username, email, password } = req.body;
 
-  // UBAH JUGA DI SINI
   const cleanUsername = username ? validator.trim(username) : '';
-  const cleanEmail = email ? validator.normalizeEmail(validator.trim(email)) : '';
+  
+  // FIX: Nonaktifkan penghapusan titik pada Gmail
+  const cleanEmail = email ? validator.normalizeEmail(validator.trim(email), { gmail_remove_dots: false }) : '';
   
   const newUser = await User.create({
-    username: cleanUsername, // MASUKKAN KE DB
+    username: cleanUsername,
     email: cleanEmail,
     password: password,
   });
+
+  const emailData = {
+      subject: 'Welcome to VeriHire! 🎉',
+      title: 'Welcome Aboard!',
+      message: `Hello ${newUser.username},\n\nThank you for joining VeriHire! We are ready to help you analyze your CV and detect fake job vacancies.\n\nEnjoy exploring our features!`,
+      buttonText: 'Start Scanning Now'
+  };
+
+  try {
+    await sendEmail({
+      email: newUser.email,
+      subject: emailData.subject,
+      title: emailData.title,
+      message: emailData.message,
+      buttonText: emailData.buttonText,
+      buttonLink: 'http://localhost:3001' 
+    });
+  } catch (err) {
+    console.log('Welcome email failed to send:', err);
+  }
 
   const token = signToken(newUser._id);
   newUser.password = undefined;
@@ -42,87 +64,118 @@ exports.login = catchAsync(async (req, res, next) => {
     return res.status(400).json({ success: false, message: 'Please provide email and password' });
   }
 
-  const user = await User.findOne({ email: validator.normalizeEmail(email) }).select('+password');
+  // FIX: Cocokkan cara normalize dengan saat register
+  const normalizedEmail = validator.normalizeEmail(email, { gmail_remove_dots: false });
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(401).json({ success: false, message: 'Incorrect email or password' });
   }
 
   const token = signToken(user._id);
-
   res.status(200).json({ success: true, token });
 });
 
 // --- 3. GET CURRENT USER (ME) ---
 exports.getMe = catchAsync(async (req, res, next) => {
-  res.status(200).json({
-    success: true,
-    data: { user: req.user }
-  });
+  res.status(200).json({ success: true, data: { user: req.user } });
 });
 
-// --- 4. UPDATE PROFILE (Username, Email, Avatar) ---
+// --- 4. UPDATE PROFILE ---
 exports.updateProfile = catchAsync(async (req, res, next) => {
-  // 1. Cegah user ngubah password dari endpoint ini
   if (req.body.password || req.body.currentPassword || req.body.newPassword) {
-    return res.status(400).json({
-      success: false,
-      message: 'This route is not for password updates. Please use /update-password.'
-    });
+    return res.status(400).json({ success: false, message: 'This route is not for password updates. Please use /update-password.' });
   }
 
-  // 2. Filter hanya field yang boleh diubah
   const filterBody = {};
   if (req.body.username) filterBody.username = req.body.username;
-  if (req.body.email) filterBody.email = req.body.email;
-  if (req.body.avatar !== undefined) filterBody.avatar = req.body.avatar; // Handle avatar dari FE
+  if (req.body.email) filterBody.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false }); // FIX email edit
+  if (req.body.avatar !== undefined) filterBody.avatar = req.body.avatar; 
 
-  // 3. Update document user
-  const updatedUser = await User.findByIdAndUpdate(req.user.id, filterBody, {
-    new: true,
-    runValidators: true
-  });
-
-  res.status(200).json({
-    success: true,
-    data: updatedUser
-  });
+  const updatedUser = await User.findByIdAndUpdate(req.user.id, filterBody, { new: true, runValidators: true });
+  res.status(200).json({ success: true, data: updatedUser });
 });
-
 
 // --- 5. UPDATE PASSWORD ---
 exports.updatePassword = catchAsync(async (req, res, next) => {
   const { currentPassword, newPassword } = req.body;
 
-  // 1. Validasi input: pastikan user mengisi password lama dan baru
   if (!currentPassword || !newPassword) {
-    return res.status(400).json({
-      success: false,
-      message: 'Please provide both your current password and new password.'
-    });
+    return res.status(400).json({ success: false, message: 'Please provide both your current password and new password.' });
   }
 
-  // 2. Ambil user dari database beserta password-nya 
-  // (Karena di model select: false, kita harus pakai +password)
   const user = await User.findById(req.user.id).select('+password');
-
-  // 3. Verifikasi password lama menggunakan method dari model User.js
   const isPasswordCorrect = await user.correctPassword(currentPassword, user.password);
 
   if (!isPasswordCorrect) {
-    return res.status(401).json({
-      success: false,
-      message: 'Your current password is incorrect!'
-    });
+    return res.status(401).json({ success: false, message: 'Your current password is incorrect!' });
   }
 
-  // 4. Update dengan password baru
   user.password = newPassword;
   await user.save(); 
 
-  // 5. Kirim response sukses
-  res.status(200).json({
-    success: true,
-    message: 'Password updated successfully!'
+  res.status(200).json({ success: true, message: 'Password updated successfully!' });
+});
+
+// --- 6. FORGOT PASSWORD ---
+exports.forgotPassword = catchAsync(async (req, res, next) => {
+  const normalizedEmail = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false }); // FIX search email
+  const user = await User.findOne({ email: normalizedEmail });
+  
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'Email tidak ditemukan / Email not found.' });
+  }
+
+  const resetToken = user.createPasswordResetToken();
+  await user.save({ validateBeforeSave: false });
+
+  const resetURL = `http://localhost:3001/reset-password/${resetToken}`;
+
+
+  const emailData = {
+      subject: 'VeriHire - Password Reset Request',
+      title: 'Reset Your Password',
+      message: 'We received a request to reset your password. Click the button below to create a new password. This link is only valid for 10 minutes.',
+      buttonText: 'Reset Password'
+  };
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: emailData.subject,
+      title: emailData.title,
+      message: emailData.message,
+      buttonText: emailData.buttonText,
+      buttonLink: resetURL
+    });
+
+    res.status(200).json({ success: true, message: 'Token reset password telah dikirim ke email.' });
+  } catch (err) {
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(500).json({ success: false, message: 'Gagal mengirim email / Failed to send email.' });
+  }
+});
+
+// --- 7. RESET PASSWORD ---
+exports.resetPassword = catchAsync(async (req, res, next) => {
+  const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() }
   });
+
+  if (!user) {
+    return res.status(400).json({ success: false, message: 'Token tidak valid atau sudah kadaluarsa.' });
+  }
+
+  user.password = req.body.password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save(); 
+
+  res.status(200).json({ success: true, message: 'Password berhasil diubah! Silakan login.' });
 });

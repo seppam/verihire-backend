@@ -1,7 +1,7 @@
-const pdfParse = require('pdf-parse');
 const CvAnalysis = require('../models/CvAnalysis');
 const { analyzeCvWithAI } = require('../services/cvService');
 const catchAsync = require('../utils/catchAsync');
+const { extractTextFromFile } = require('../utils/fileExtractor');
 
 exports.analyzeUserCv = catchAsync(async (req, res, next) => {
     // 1. Cek apakah file sudah di-upload
@@ -13,8 +13,7 @@ exports.analyzeUserCv = catchAsync(async (req, res, next) => {
     }
 
     // 2. Ekstrak teks dari Buffer PDF
-    const data = await pdfParse(req.file.buffer);
-    const cvText = data.text;
+    const cvText = await extractTextFromFile(req.file);
 
     if (!cvText || cvText.trim().length < 100) {
         return res.status(400).json({

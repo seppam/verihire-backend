@@ -2,6 +2,7 @@ const validator = require('validator');
 const JobScan = require('../models/JobScan'); 
 const catchAsync = require('../utils/catchAsync');
 const { extractTextFromImage, extractTextFromUrl, analyzeContent } = require('../services/aiService');
+const { extractTextFromFile } = require('../utils/fileExtractor');
 
 exports.detectJob = catchAsync(async (req, res, next) => {
     let textToAnalyze = "";
@@ -13,8 +14,8 @@ exports.detectJob = catchAsync(async (req, res, next) => {
 
     // 1. Logika Pemilihan Input
     if (req.file) {
-        inputType = "image";
-        textToAnalyze = await extractTextFromImage(req.file.buffer, lang);
+        inputType = "document_or_image";
+        textToAnalyze = await extractTextFromFile(req.file);
     } else if (url) { // Pakai variabel hasil destrukturisasi
         inputType = "url";
         textToAnalyze = await extractTextFromUrl(url, lang);

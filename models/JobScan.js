@@ -11,7 +11,7 @@ const JobScanSchema = new mongoose.Schema({
   // 2. Data Input & Metadata
   inputType: { 
     type: String, 
-    enum: ['text', 'image', 'url'], 
+    enum: ['text', 'image', 'url', 'document_or_image'],
     required: true,
     default: 'text' 
   },
