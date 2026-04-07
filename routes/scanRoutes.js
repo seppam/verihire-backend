@@ -36,7 +36,9 @@ const upload = multer({
 const uploadMiddleware = (req, res, next) => {
     upload.single("file")(req, res, (err) => {
         if (err instanceof multer.MulterError) {
-            return res.status(400).json({ success: false, message: `File too large! Max 5MB.` });
+            const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
+            const msg = lang === 'id' ? 'File terlalu besar! Maks 5MB.' : 'File too large! Max 5MB.';
+            return res.status(400).json({ success: false, message: msg });
         } else if (err) {
             return res.status(400).json({ success: false, message: err.message });
         }
@@ -59,5 +61,6 @@ router.post("/detect", optionalProtect, dynamicRateLimit, uploadMiddleware, scan
 // ENDPOINT HISTORY (Tetap wajib login)
 router.get("/my-history", protect, scanController.getMyHistory);
 router.delete("/my-history/:id", protect, scanController.deleteScanHistory);
+router.get("/my-history/:id", protect, scanController.getScanHistoryById);
 
 module.exports = router;

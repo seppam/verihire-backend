@@ -1,44 +1,44 @@
-const JobScan = require('../models/JobScan'); // Sesuaikan nama modelmu
+const JobScan = require('../models/JobScan'); // Adjust your model name
 const catchAsync = require('../utils/catchAsync');
 
 exports.getLandingPageStats = catchAsync(async (req, res, next) => {
-    // Jalankan 3 query ke database secara BERSAMAAN (Paralel) agar response time super cepat!
+    // Run 3 queries to the database concurrently (Parallel) for super fast response time!
     const [totalScans, totalFake, sourceStats] = await Promise.all([
-        // 1. Hitung total semua scan
+        // 1. Calculate total of all scans
         JobScan.countDocuments(),
 
-        // 2. Hitung yang terindikasi palsu (Verdict: Suspicious atau High Risk)
+        // 2. Calculate the ones indicated as fake (Verdict: Suspicious or High Risk)
         JobScan.countDocuments({
             'analysis.verdict': { $in: ['Suspicious', 'High Risk'] }
         }),
 
-        // 3. Cari source paling banyak pakai Aggregation Pipeline
+        // 3. Find the most used source using Aggregation Pipeline
         JobScan.aggregate([
             {
-                // TAHAP 1 (BARU): Filter / Buang semua data yang source-nya null atau tidak ada
+                // STAGE 1 (NEW): Filter / Remove all data where the source is null or missing
                 $match: { 
                     source: { $ne: null, $exists: true } 
                 }
             },
             { 
-                // TAHAP 2: Kelompokkan berdasarkan field 'source'
+                // STAGE 2: Group by the 'source' field
                 $group: { 
                     _id: "$source", 
                     count: { $sum: 1 } 
                 } 
             },
             { 
-                // TAHAP 3: Urutkan dari yang jumlahnya paling besar
+                // STAGE 3: Sort from the highest count
                 $sort: { count: -1 } 
             },
             { 
-                // TAHAP 4: Ambil juara satunya aja
+                // STAGE 4: Take only the top one
                 $limit: 1 
             }
         ])
     ]);
 
-    // Ekstrak nama source juara 1 (kalau database masih kosong, kasih default 'N/A')
+    // Extract the top 1 source name (if the database is still empty, give default 'N/A')
     const topSource = sourceStats.length > 0 ? sourceStats[0]._id : "N/A";
 
     res.status(200).json({

@@ -7,7 +7,10 @@ const JobScanSchema = new mongoose.Schema({
     ref: 'User'
     // required dihapus agar guest bisa masuk tanpa diusir
   },
-  
+  scanTitle: { 
+    type: String,
+    default: 'Scan Document'
+  },
   // 2. Data Input & Metadata
   inputType: { 
     type: String, 

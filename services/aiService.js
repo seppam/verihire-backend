@@ -97,7 +97,8 @@ const analyzeContent = async (text, lang = 'en') => {
         return JSON.parse(rawText);
     } catch (error) {
         console.error("AI Analysis Error:", error); // Berguna buat debugging di terminal
-        throw new Error("AI analysis failed.");
+        const errMsg = lang === 'id' ? 'Analisis AI gagal.' : 'AI analysis failed.';
+        throw new Error(errMsg);
     }
 };
 

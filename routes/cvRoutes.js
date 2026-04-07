@@ -37,5 +37,7 @@ router.use(protect);
 
 router.post('/analyze', upload.single('cv'), cvController.analyzeUserCv);
 router.get('/history', cvController.getCvHistory);
+router.get('/history/:id', cvController.getCvHistoryById);
+router.delete('/history/:id', cvController.deleteCvHistory);
 
 module.exports = router;

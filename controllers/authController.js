@@ -17,7 +17,7 @@ exports.register = catchAsync(async (req, res, next) => {
 
   const cleanUsername = username ? validator.trim(username) : '';
   
-  // FIX: Nonaktifkan penghapusan titik pada Gmail
+  // FIX: Disable removing dots on Gmail
   const cleanEmail = email ? validator.normalizeEmail(validator.trim(email), { gmail_remove_dots: false }) : '';
   
   const newUser = await User.create({
@@ -64,7 +64,7 @@ exports.login = catchAsync(async (req, res, next) => {
     return res.status(400).json({ success: false, message: 'Please provide email and password' });
   }
 
-  // FIX: Cocokkan cara normalize dengan saat register
+  // FIX: Match the normalization method used during registration
   const normalizedEmail = validator.normalizeEmail(email, { gmail_remove_dots: false });
   const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
@@ -123,7 +123,7 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: normalizedEmail });
   
   if (!user) {
-    return res.status(404).json({ success: false, message: 'Email tidak ditemukan / Email not found.' });
+    return res.status(404).json({ success: false, message: 'Email not found.' });
   }
 
   const resetToken = user.createPasswordResetToken();
@@ -149,13 +149,13 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
       buttonLink: resetURL
     });
 
-    res.status(200).json({ success: true, message: 'Token reset password telah dikirim ke email.' });
+    res.status(200).json({ success: true, message: 'Password reset token has been sent to email.' });
   } catch (err) {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save({ validateBeforeSave: false });
 
-    return res.status(500).json({ success: false, message: 'Gagal mengirim email / Failed to send email.' });
+    return res.status(500).json({ success: false, message: 'Failed to send email.' });
   }
 });
 
@@ -169,7 +169,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   });
 
   if (!user) {
-    return res.status(400).json({ success: false, message: 'Token tidak valid atau sudah kadaluarsa.' });
+    return res.status(400).json({ success: false, message: 'Token is invalid or has expired.' });
   }
 
   user.password = req.body.password;
@@ -177,5 +177,5 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   user.passwordResetExpires = undefined;
   await user.save(); 
 
-  res.status(200).json({ success: true, message: 'Password berhasil diubah! Silakan login.' });
+  res.status(200).json({ success: true, message: 'Password successfully changed! Please login.' });
 });

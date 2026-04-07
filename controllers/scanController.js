@@ -6,7 +6,8 @@ const { extractTextFromFile } = require('../utils/fileExtractor');
 
 exports.detectJob = catchAsync(async (req, res, next) => {
     let textToAnalyze = "";
-    let inputType = "text"; 
+    let inputType = "text";
+    let scanTitle = "Text Input"; 
     const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
     
     // Ambil data dari body
@@ -16,19 +17,24 @@ exports.detectJob = catchAsync(async (req, res, next) => {
     if (req.file) {
         inputType = "document_or_image";
         textToAnalyze = await extractTextFromFile(req.file);
-    } else if (url) { // Pakai variabel hasil destrukturisasi
+        scanTitle = req.file.originalname; // Tangkap nama file!
+    } else if (url) { 
         inputType = "url";
         textToAnalyze = await extractTextFromUrl(url, lang);
+        scanTitle = url; // Jadikan URL sebagai title
     } else {
         inputType = "text";
         textToAnalyze = content;
+        // Ambil 20 huruf pertama teks sebagai title
+        scanTitle = content ? content.substring(0, 20) + "..." : "Text Scan"; 
     }
 
+    const errEmptyMsg = lang === 'id' ? 'Teks tidak boleh kosong.' : 'No content provided.';
     // Validasi konten kosong
     if (!textToAnalyze || textToAnalyze.trim().length === 0) {
         return res.status(400).json({ 
             success: false,
-            message: "No content provided." 
+            message: errEmptyMsg 
         });
     }
 
@@ -41,6 +47,7 @@ exports.detectJob = catchAsync(async (req, res, next) => {
 
     // 3. Persiapkan Data untuk Database
     const scanData = {
+        scanTitle: scanTitle,
         content: sanitizedText,
         inputType,
         url: url || null,
@@ -101,15 +108,38 @@ exports.deleteScanHistory = catchAsync(async (req, res, next) => {
     user: req.user.id
   });
 
+  const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
+  const errNotFoundMsg = lang === 'id' ? 'Riwayat scan tidak ditemukan atau akses ditolak.' : 'Scan history not found or unauthorized access.';
+  
   if (!scan) {
     return res.status(404).json({ 
       success: false, 
-      message: 'Scan history not found or unauthorized access.' 
+      message: errNotFoundMsg 
     });
+  }
+
+  const successMsg = lang === 'id' ? 'Riwayat scan berhasil dihapus.' : 'Scan history successfully deleted.';
+  res.status(200).json({
+    success: true,
+    message: successMsg
+  });
+});
+
+
+// --- MELIHAT DETAIL SATU HISTORY JOB SCAN ---
+exports.getScanHistoryById = catchAsync(async (req, res, next) => {
+  // Cari berdasarkan ID param DAN ID user yang login
+  const scan = await JobScan.findOne({ _id: req.params.id, user: req.user.id });
+
+  const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
+  const errNotFoundMsg = lang === 'id' ? 'Riwayat scan tidak ditemukan atau akses ditolak.' : 'Scan history not found or unauthorized access.';
+
+  if (!scan) {
+    return res.status(404).json({ success: false, message: errNotFoundMsg });
   }
 
   res.status(200).json({
     success: true,
-    message: 'Scan history successfully deleted.'
+    data: scan
   });
 });

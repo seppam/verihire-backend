@@ -19,7 +19,7 @@ exports.protect = catchAsync(async (req, res, next) => {
     return res.status(401).json({ message: 'The user belonging to this token no longer exists' });
   }
 
-  // Simpan data user ke request agar bisa dipakai di controller selanjutnya
+  // Save user data to request to be used in subsequent controllers
   req.user = currentUser;
   next();
 });
@@ -35,11 +35,11 @@ exports.optionalProtect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const currentUser = await User.findById(decoded.id);
       if (currentUser) {
-        req.user = currentUser; // User terdeteksi login
+        req.user = currentUser; // User is logged in
       }
     }
     next();
   } catch (err) {
-    next(); // Jika token salah/expired, tetap lanjut sebagai guest
+    next(); // If token is invalid/expired, continue as guest
   }
 };
