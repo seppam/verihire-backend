@@ -1,5 +1,6 @@
 const CvAnalysis = require('../models/CvAnalysis');
-const { analyzeCvWithAI, generateImprovedCvText } = require('../services/cvService');
+// const { analyzeCvWithAI, generateImprovedCvText } = require('../services/cvService');
+const { analyzeCvWithAI, generateImprovedCvText } = require('../services/eliceCvService');
 const catchAsync = require('../utils/catchAsync');
 const { extractTextFromFile } = require('../utils/fileExtractor');
 

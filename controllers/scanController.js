@@ -1,7 +1,8 @@
 const validator = require('validator');
 const JobScan = require('../models/JobScan'); 
 const catchAsync = require('../utils/catchAsync');
-const { extractTextFromImage, extractTextFromUrl, analyzeContent } = require('../services/aiService');
+// const { extractTextFromImage, extractTextFromUrl, analyzeContent } = require('../services/aiService');
+const { extractTextFromUrl, analyzeContent } = require('../services/eliceJobService');
 const { extractTextFromFile } = require('../utils/fileExtractor');
 
 exports.detectJob = catchAsync(async (req, res, next) => {
