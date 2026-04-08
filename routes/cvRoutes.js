@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const cvController = require('../controllers/cvController');
 const { protect } = require('../middlewares/authMiddleware');
+const { anonScanLimiter } = require('../middlewares/rateLimiter');
+const { cvLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
@@ -35,7 +37,7 @@ const upload = multer({
 // Semua route CV wajib Login
 router.use(protect);
 
-router.post('/analyze', upload.single('cv'), cvController.analyzeUserCv);
+router.post('/analyze', cvLimiter, upload.single('cv'), cvController.analyzeUserCv);
 router.get('/history', cvController.getCvHistory);
 router.get('/history/:id', cvController.getCvHistoryById);
 router.delete('/history/:id', cvController.deleteCvHistory);

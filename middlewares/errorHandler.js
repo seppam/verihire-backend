@@ -42,7 +42,7 @@ module.exports = (err, req, res, next) => {
   // 5. Multer Specific Errors
   if (err.code === "LIMIT_FILE_SIZE") {
     statusCode = 400;
-    message = "File too large! Maximum limit is 2MB.";
+    message = "File too large! Maximum limit is 5MB.";
   }
   
   // Error from multer file filter (manually thrown in the route)

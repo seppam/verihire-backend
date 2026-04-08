@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const scanController = require("../controllers/scanController");
+
+// Import cuma ditulis SEKALI di bagian atas
 const { protect, optionalProtect } = require("../middlewares/authMiddleware");
 const { anonScanLimiter } = require("../middlewares/rateLimiter");
 
@@ -11,7 +13,6 @@ const upload = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 }, // Maksimal 5MB
     fileFilter: (req, file, cb) => {
-        // FIX: Tangkap bahasa dari header, default English
         const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
         const errorMsg = lang === 'id' 
             ? 'Format tidak didukung! Gunakan PDF, DOCX, JPG, atau PNG.' 
@@ -19,7 +20,7 @@ const upload = multer({
 
         const allowedTypes = [
             'application/pdf', 
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'image/jpeg', 
             'image/png', 
             'image/jpg'
@@ -46,17 +47,8 @@ const uploadMiddleware = (req, res, next) => {
     });
 };
 
-// router.post("/detect", optionalProtect, verifyTurnstile, dynamicRateLimit, uploadMiddleware, scanController.detectJob);
-
-const dynamicRateLimit = (req, res, next) => {
-  if (req.user) {
-    return next(); // User login? Bebas limit, lanjut!
-  }
-  return anonScanLimiter(req, res, next); // Guest? Kena jaring limiter.
-};
-
 // ENDPOINT DETECT
-router.post("/detect", optionalProtect, dynamicRateLimit, uploadMiddleware, scanController.detectJob);
+router.post("/detect", optionalProtect, anonScanLimiter, uploadMiddleware, scanController.detectJob);
 
 // ENDPOINT HISTORY (Tetap wajib login)
 router.get("/my-history", protect, scanController.getMyHistory);
