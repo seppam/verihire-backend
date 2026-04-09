@@ -1,52 +1,63 @@
-const JobScan = require('../models/JobScan'); // Adjust your model name
+const JobScan = require('../models/JobScan');
+const CvAnalysis = require('../models/CvAnalysis');
 const catchAsync = require('../utils/catchAsync');
 
+// --- 1. PUBLIC STATS (Landing Page) ---
 exports.getLandingPageStats = catchAsync(async (req, res, next) => {
-    // Run 3 queries to the database concurrently (Parallel) for super fast response time!
-    const [totalScans, totalFake, sourceStats] = await Promise.all([
-        // 1. Calculate total of all scans
+    const [totalScans, totalFake, sourceStats, totalCvAnalyzed] = await Promise.all([
         JobScan.countDocuments(),
-
-        // 2. Calculate the ones indicated as fake (Verdict: Suspicious or High Risk)
-        JobScan.countDocuments({
-            'analysis.verdict': { $in: ['Suspicious', 'High Risk'] }
-        }),
-
-        // 3. Find the most used source using Aggregation Pipeline
+        JobScan.countDocuments({ 'analysis.verdict': { $in: ['Suspicious', 'High Risk'] } }),
         JobScan.aggregate([
-            {
-                // STAGE 1 (NEW): Filter / Remove all data where the source is null or missing
-                $match: { 
-                    source: { $ne: null, $exists: true } 
-                }
-            },
-            { 
-                // STAGE 2: Group by the 'source' field
-                $group: { 
-                    _id: "$source", 
-                    count: { $sum: 1 } 
-                } 
-            },
-            { 
-                // STAGE 3: Sort from the highest count
-                $sort: { count: -1 } 
-            },
-            { 
-                // STAGE 4: Take only the top one
-                $limit: 1 
-            }
-        ])
+            { $match: { source: { $ne: null, $exists: true } } },
+            { $group: { _id: "$source", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 1 }
+        ]),
+        CvAnalysis.countDocuments()
     ]);
 
-    // Extract the top 1 source name (if the database is still empty, give default 'N/A')
     const topSource = sourceStats.length > 0 ? sourceStats[0]._id : "N/A";
 
     res.status(200).json({
         success: true,
+        data: { totalScans, totalFake, topSource, totalCvAnalyzed }
+    });
+});
+
+// --- 2. PERSONAL STATS (User Dashboard) ---
+exports.getUserStats = catchAsync(async (req, res, next) => {
+    const [jobStats, cvStats] = await Promise.all([
+        JobScan.aggregate([
+            { $match: { user: req.user._id } },
+            { 
+                $group: {
+                    _id: null,
+                    totalScans: { $sum: 1 },
+                    scamsAvoided: { $sum: { $cond: [{ $in: ["$analysis.verdict", ["Suspicious", "High Risk"]] }, 1, 0] } }
+                }
+            }
+        ]),
+        CvAnalysis.aggregate([
+            { $match: { user: req.user._id } },
+            {
+                $group: {
+                    _id: null,
+                    totalCv: { $sum: 1 },
+                    avgScore: { $avg: "$analysis.cvMatchScore" },
+                    bestScore: { $max: "$analysis.cvMatchScore" }
+                }
+            }
+        ])
+    ]);
+
+    res.status(200).json({
+        success: true,
         data: {
-            totalScans,
-            totalFake,
-            topSource
+            jobTotal: jobStats.length > 0 ? jobStats[0].totalScans : 0,
+            scamsAvoided: jobStats.length > 0 ? jobStats[0].scamsAvoided : 0,
+            cvTotal: cvStats.length > 0 ? cvStats[0].totalCv : 0,
+            avgCvScore: cvStats.length > 0 ? Math.round(cvStats[0].avgScore) : 0,
+            bestCvScore: cvStats.length > 0 ? cvStats[0].bestScore : 0
         }
     });
 });
