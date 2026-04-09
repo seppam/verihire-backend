@@ -11,8 +11,19 @@ exports.detectJob = catchAsync(async (req, res, next) => {
     let scanTitle = "Text Input"; 
     const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
     
-    // Ambil data dari body
     const { content, url, source } = req.body;
+
+    // 0. TOKEN CHECK (FOR LOGGED IN USERS)
+    if (req.user) {
+        if (req.user.scanLimit <= 0) {
+            const errLimitMsg = lang === 'id' ? 'Kuota scan Anda habis. Silakan upgrade ke Premium.' : 'Scan quota exhausted. Please upgrade to Premium.';
+            return res.status(403).json({
+                success: false,
+                message: errLimitMsg,
+                code: 'PAYMENT_REQUIRED'
+            });
+        }
+    }
 
     // 1. Logika Pemilihan Input
     if (req.file) {
@@ -59,6 +70,10 @@ exports.detectJob = catchAsync(async (req, res, next) => {
     // Link ke user jika login (untuk History)
     if (req.user) {
         scanData.user = req.user.id;
+        
+        // DECREMENT TOKEN
+        req.user.scanLimit -= 1;
+        await req.user.save();
     }
 
     const savedData = await JobScan.create(scanData);

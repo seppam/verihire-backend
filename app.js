@@ -33,6 +33,7 @@ app.use("/api/scan", require("./routes/scanRoutes"));
 app.use("/api/chat", require("./routes/chatRoutes"));
 app.use("/api/stats", require("./routes/statsRoutes"));
 app.use("/api/cv", require("./routes/cvRoutes"));
+app.use("/api/payment", require("./routes/paymentRoutes"));
 
 // 404 Handler 
 app.use((req, res, next) => {

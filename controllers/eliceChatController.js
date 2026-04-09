@@ -1,5 +1,15 @@
 const axios = require('axios');
 const catchAsync = require("../utils/catchAsync"); 
+const Chat = require("../models/Chat");
+
+exports.getChatHistory = catchAsync(async (req, res, next) => {
+    const chat = await Chat.findOne({ userId: req.user._id });
+    
+    res.status(200).json({
+        success: true,
+        history: chat ? chat.messages : []
+    });
+});
 
 exports.getChatResponse = catchAsync(async (req, res, next) => {
     const { message } = req.body;
@@ -19,7 +29,7 @@ exports.getChatResponse = catchAsync(async (req, res, next) => {
         Help users identify job scams, provide safe job-hunting tips, and offer career advice.
 
         BEHAVIOR RULES:
-        1. Stateless Awareness: Assume each user message is a standalone question. Provide complete, self-contained answers without relying on past conversation.
+        1. Context Awareness: You are talking to a user. Use the conversation history provided to maintain context.
         2. Strict Boundaries: If the user asks about topics completely unrelated to careers, jobs, CVs, or recruitment scams (e.g., cooking, politics, math), politely decline and offer to help with job-related questions instead.
         3. Tone: Professional, empathetic, and encouraging. Use bullet points for readability when listing tips.
         4. Practicality: When giving anti-scam advice, always include actionable steps (e.g., "Always check the company's official domain" or "Never transfer money for a job").
@@ -27,29 +37,60 @@ exports.getChatResponse = catchAsync(async (req, res, next) => {
 
     try {
         const url = "https://mlapi.run/daef5150-72ef-48ff-8861-df80052ea7ac/v1/chat/completions";
+        let chatContext = [];
+
+        // INITIALIZE CONTEXT
+        if (req.user) {
+            // Logged-in user: find or create chat doc
+            let chat = await Chat.findOne({ userId: req.user._id });
+            if (!chat) {
+                chat = await Chat.create({ userId: req.user._id, messages: [] });
+            }
+
+            // Append new user message to DB
+            chat.messages.push({ role: 'user', content: message });
+
+            // Sliding window: Ambil 10 pesan terakhir untuk konteks AI
+            const lastMessages = chat.messages.slice(-10).map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
+
+            chatContext = [
+                { role: "system", content: systemInstruction },
+                ...lastMessages
+            ];
+            
+            // We save LATER after getting AI response to include both
+            req.chatDoc = chat; 
+        } else {
+            // Guest: stateless
+            chatContext = [
+                { role: "system", content: systemInstruction.replace("Context Awareness", "Stateless Awareness: Assume each user message is a standalone question.") },
+                { role: "user", content: message }
+            ];
+        }
         
         const payload = {
             model: "openai/gpt-5-nano",
-            messages: [
-                { role: "system", content: systemInstruction },
-                { role: "user", content: message }
-            ],
-            // Temperature diset ke 0.7 agar respon chat lebih luwes, natural, dan nggak kaku
-            // temperature: 0.7, 
+            messages: chatContext,
             response_format: { type: "text" }
         };
 
         const headers = {
             "accept": "application/json",
             "content-type": "application/json",
-            "Authorization": `Bearer ${process.env.ELICE_API_KEY}` // Tetap pakai kunci yang sama
+            "Authorization": `Bearer ${process.env.ELICE_API_KEY}`
         };
 
-        // Tembak API Elice
         const response = await axios.post(url, payload, { headers });
-        
-        // Ambil isi teks jawabannya
         const replyText = response.data.choices[0].message.content;
+
+        // Save to DB if user is logged in
+        if (req.user && req.chatDoc) {
+            req.chatDoc.messages.push({ role: 'assistant', content: replyText });
+            await req.chatDoc.save();
+        }
 
         res.status(200).json({ 
             success: true, 

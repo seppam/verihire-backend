@@ -7,6 +7,16 @@ const { extractTextFromFile } = require('../utils/fileExtractor');
 exports.analyzeUserCv = catchAsync(async (req, res, next) => {
     const lang = req.headers['accept-language'] === 'id' ? 'id' : 'en';
 
+    // 0. TOKEN CHECK
+    if (req.user.scanLimit <= 0) {
+        const errLimitMsg = lang === 'id' ? 'Kuota scan CV Anda habis. Silakan upgrade ke Premium.' : 'CV scan quota exhausted. Please upgrade to Premium.';
+        return res.status(403).json({
+            success: false,
+            message: errLimitMsg,
+            code: 'PAYMENT_REQUIRED'
+        });
+    }
+
     // 1. Cek apakah file sudah di-upload
     const errNoFileMsg = lang === 'id' ? 'Harap unggah file CV (PDF).' : 'Please upload a CV file (PDF).';
     if (!req.file) {
@@ -43,6 +53,10 @@ exports.analyzeUserCv = catchAsync(async (req, res, next) => {
         improvedCvText: improvedCvText,
         analysis: aiResults
     });
+
+    // 6. DECREMENT TOKEN
+    req.user.scanLimit -= 1;
+    await req.user.save();
 
     res.status(201).json({
         success: true,

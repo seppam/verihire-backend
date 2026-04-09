@@ -31,6 +31,22 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
+  isPremium: {
+    type: Boolean,
+    default: false
+  },
+  premiumValidUntil: {
+    type: Date,
+    default: null
+  },
+  scanLimit: {
+    type: Number,
+    default: 20 // Free users get 20 tokens
+  },
+  phoneNumber: {
+    type: String,
+    default: ""
+  },
   createdAt: {
     type: Date,
     default: Date.now

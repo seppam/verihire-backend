@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const scanController = require("../controllers/scanController");
+const captchaMiddleware = require('../middlewares/captchaMiddleware');
 
 // Import cuma ditulis SEKALI di bagian atas
 const { protect, optionalProtect } = require("../middlewares/authMiddleware");
@@ -48,7 +49,14 @@ const uploadMiddleware = (req, res, next) => {
 };
 
 // ENDPOINT DETECT
-router.post("/detect", optionalProtect, anonScanLimiter, uploadMiddleware, scanController.detectJob);
+router.post(
+    "/detect", 
+    optionalProtect, 
+    anonScanLimiter,       
+    uploadMiddleware,      
+    captchaMiddleware.verifyTurnstile, 
+    scanController.detectJob
+);
 
 // ENDPOINT HISTORY (Tetap wajib login)
 router.get("/my-history", protect, scanController.getMyHistory);
