@@ -27,7 +27,7 @@ const analyzeCvWithAI = async (cvText, jobTarget, lang = 'en') => {
             2. Determine the match status (Low, Medium, High, Excellent).
             3. Identify key strengths in the CV THAT ARE HIGHLY RELEVANT to the Target Job.
             4. Identify weaknesses or missing skills in the CV THAT ARE REQUIRED for the Target Job.
-            5. Provide "Improvement Advice": If the score is below 60, give 2-3 concrete, actionable steps to bridge the skill gap. If the score is 60 or above, provide advanced interview preparation tips.
+            5. Provide "Improvement Advice": If the score is below 60, give 2-3 concrete, actionable steps to bridge the skill gap (e.g., recommend specific certifications, tools to learn, or portfolio projects). If the score is 60 or above, provide advanced interview preparation tips.
             6. Provide 2-3 specific "Rephrase Suggestions" where a weak sentence in the CV is rewritten into a strong, metric-driven bullet point.
             7. Provide 2-3 Alternative "Job Recommendations" based on the user's overall skills in the CV, but outside of their stated Target Job.
 

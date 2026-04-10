@@ -66,6 +66,7 @@ const analyzeContent = async (text, lang = 'en') => {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
         
         // PROMPT TUNING: Kita beri persona, rubrik, dan toleransi OCR
+        // PROMPT TUNING: Synchronized logic with Elice
         const prompt = `
             You are an expert HR Fraud Investigator. Your job is to analyze job vacancy texts and detect scams.
             Note: The text below is extracted via OCR from an image, so please tolerate and infer meaning from typos or garbled words.
@@ -74,13 +75,15 @@ const analyzeContent = async (text, lang = 'en') => {
             "${text}"
 
             ANALYSIS RUBRIC:
-            - "High Risk": Mentions upfront payments/deposits, uses personal emails (e.g., @gmail, @yahoo) for supposedly large corporate roles, guarantees immediate hiring, or offers highly unrealistic salaries for entry-level tasks (e.g., liking posts, simple admin).
+            - "High Risk": Mentions upfront payments/deposits, uses personal emails (e.g., @gmail, @yahoo) for supposedly large corporate roles, guarantees immediate hiring, or offers highly unrealistic salaries for entry-level tasks.
             - "Suspicious": Vague job descriptions, overly urgent tone, missing company details, or poorly structured contact info.
             - "Legit": Clear role, realistic requirements, standard application process, professional corporate contact info.
 
             Response Language MUST BE: ${lang === 'id' ? 'Indonesian' : 'English'}.
             
-            Return ONLY a pure JSON object with no markdown formatting, using this exact structure:
+            Return ONLY a pure JSON object with no markdown formatting.
+            Ensure the keys 'score', 'verdict', 'flags', and 'recommendation' are present.
+            Use this exact structure:
             {
                 "score": <number between 0-100. 0-40 is High Risk, 41-70 is Suspicious, 71-100 is Legit>,
                 "verdict": "<strictly choose one: 'Legit', 'Suspicious', or 'High Risk'>",

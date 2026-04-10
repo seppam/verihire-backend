@@ -41,12 +41,19 @@ exports.detectJob = catchAsync(async (req, res, next) => {
         scanTitle = content ? content.substring(0, 20) + "..." : "Text Scan"; 
     }
 
-    const errEmptyMsg = lang === 'id' ? 'Teks tidak boleh kosong.' : 'No content provided.';
-    // Validasi konten kosong
-    if (!textToAnalyze || textToAnalyze.trim().length === 0) {
+    // 1.5 Validasi Panjang Teks (The Guard)
+    const minChar = 50;
+    const isTooShort = !textToAnalyze || textToAnalyze.trim().length < minChar;
+    
+    if (isTooShort) {
+        const errShortMsg = lang === 'id' 
+            ? `Teks terlalu pendek untuk dianalisis (Min ${minChar} karakter). Kuota Anda TIDAK terpotong.` 
+            : `Text is too short to analyze (Min ${minChar} characters). Your quota was NOT deducted.`;
+            
         return res.status(400).json({ 
             success: false,
-            message: errEmptyMsg 
+            message: errShortMsg,
+            quotaDeducted: false
         });
     }
 
@@ -70,13 +77,15 @@ exports.detectJob = catchAsync(async (req, res, next) => {
     // Link ke user jika login (untuk History)
     if (req.user) {
         scanData.user = req.user.id;
-        
-        // DECREMENT TOKEN
-        req.user.scanLimit -= 1;
-        await req.user.save();
     }
 
     const savedData = await JobScan.create(scanData);
+
+    // DECREMENT TOKEN ONLY AFTER SUCCESSFUL AI & DB SAVE
+    if (req.user) {
+        req.user.scanLimit -= 1;
+        await req.user.save();
+    }
 
     // 4. Kirim Response (Boleh 200, atau 201 biar keren)
     res.status(201).json({

@@ -29,11 +29,19 @@ exports.analyzeUserCv = catchAsync(async (req, res, next) => {
     // 2. Ekstrak teks dari Buffer PDF
     const cvText = await extractTextFromFile(req.file);
 
-    const errTooShortMsg = lang === 'id' ? 'Konten CV terlalu pendek atau tidak terbaca.' : 'CV content is too short or unreadable.';
-    if (!cvText || cvText.trim().length < 100) {
+    // 3. Validasi Panjang Teks (The Guard)
+    const minChar = 50;
+    const isTooShort = !cvText || cvText.trim().length < minChar;
+
+    if (isTooShort) {
+        const errShortMsg = lang === 'id' 
+            ? "File berisi teks yang terlalu sedikit untuk dianalisis. Harap unggah dokumen yang valid. (Kuota TIDAK terpotong)"
+            : "File contains too little text to analyze. Please upload a valid document. (Quota NOT deducted)";
+            
         return res.status(400).json({
             success: false,
-            message: errTooShortMsg
+            message: errShortMsg,
+            quotaDeducted: false
         });
     }
 
@@ -49,12 +57,12 @@ exports.analyzeUserCv = catchAsync(async (req, res, next) => {
         user: req.user.id,
         jobTarget: jobTarget || 'General',
         cvFileName: req.file ? req.file.originalname : 'CV_Document',
-        cvText: cvText, // Disimpan untuk audit, tapi di model kita set select: false
+        cvText: cvText, 
         improvedCvText: improvedCvText,
         analysis: aiResults
     });
 
-    // 6. DECREMENT TOKEN
+    // 6. DECREMENT TOKEN ONLY AFTER SUCCESSFUL DB SAVE
     req.user.scanLimit -= 1;
     await req.user.save();
 

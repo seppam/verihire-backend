@@ -80,54 +80,88 @@ exports.webhook = catchAsync(async (req, res, next) => {
         req.body.description;
 
     const status = (req.body.data?.status || req.body.status || "").toLowerCase();
+    const transactionId = req.body.data?.id || req.body.data?.transactionId;
     
     console.log("EXTRACTED DESCRIPTION:", description);
     console.log("EXTRACTED STATUS:", status);
+    console.log("TRANSACTION ID:", transactionId);
 
     if (description && description.startsWith('VERIHIRE_PREMIUM_')) {
         const parts = description.split('_');
         const userId = parts[2]; 
         console.log("TARGET USER ID:", userId);
 
-        // Mayar sends 'success', 'paid', or 'SUCCESS'
         if (status === 'success' || status === 'paid') {
-            const user = await User.findById(userId);
-            if (user) {
-                user.isPremium = true;
-                user.scanLimit += 100;
+            // 1. FIRST FIND THE USER TO GET CURRENT EXPIRY (READ ONLY)
+            const userRef = await User.findById(userId);
+            if (!userRef) {
+                console.log("ERROR: User not found in database for ID:", userId);
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            // 2. CALCULATE NEW CUMULATIVE EXPIRY
+            const now = new Date();
+            const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+            let calculatedNewExpiryDate;
+
+            if (userRef.membershipExpires && userRef.membershipExpires > now) {
+                // Extension from existing
+                calculatedNewExpiryDate = new Date(userRef.membershipExpires.getTime() + sixtyDaysMs);
+            } else {
+                // New/Reset from now
+                calculatedNewExpiryDate = new Date(now.getTime() + sixtyDaysMs);
+            }
+
+            // 3. ATOMIC UPDATE WITH IDEMPOTENCY CHECK
+            // We check that the transactionId is NOT inprocessedTransactions array
+            const updatedUser = await User.findOneAndUpdate(
+                { 
+                    _id: userId, 
+                    processedTransactions: { $ne: String(transactionId) } 
+                },
+                {
+                    $set: { 
+                        isPremium: true,
+                        membershipExpires: calculatedNewExpiryDate,
+                        premiumValidUntil: calculatedNewExpiryDate
+                    },
+                    $inc: { scanLimit: 120 },
+                    $push: { processedTransactions: String(transactionId) }
+                },
+                { new: true } // Return the updated document
+            );
+
+            // 4. ONLY TRIGGER EMAIL IF DOCUMENT WAS ACTUALLY UPDATED
+            // If updatedUser is null, it means the transactionId was already processed
+            if (updatedUser) {
+                console.log(`ATOMIC SUCCESS: User ${updatedUser.username} upgraded. New Total: ${updatedUser.scanLimit}.`);
                 
-                // Set premium validity
-                const now = new Date();
-                if (user.premiumValidUntil && user.premiumValidUntil > now) {
-                    user.premiumValidUntil = new Date(user.premiumValidUntil.setMonth(user.premiumValidUntil.getMonth() + 2));
-                } else {
-                    user.premiumValidUntil = new Date(now.setMonth(now.getMonth() + 2));
-                }
-
-                await user.save();
-                console.log(`SUCCESS: User ${user.username} upgraded to Premium. New Limit: ${user.scanLimit}`);
-
-                // EMAIL RECEIPT
                 try {
+                    const formattedDate = updatedUser.membershipExpires.toLocaleDateString('en-GB', { 
+                        day: 'numeric', 
+                        month: 'long', 
+                        year: 'numeric' 
+                    });
+
+                    const isExtension = updatedUser.membershipExpires.getTime() > (now.getTime() + sixtyDaysMs + 1000);
+
                     await sendEmail({
-                        email: user.email,
-                        subject: "VeriHire Premium Upgrade Success!",
-                        title: "Welcome to Premium!",
-                        message: `Hi ${user.username},\r\n\r\nThank you for your payment. Your account has been upgraded to Premium.\r\n\r\nDetails:\r\n- Tokens Added: 100\r\n- New Total Tokens: ${user.scanLimit}\r\n- Premium Valid Until: ${user.premiumValidUntil.toLocaleDateString()}\r\n\r\nEnjoy your professional security tools!`,
-                        buttonText: "Go to Dashboard",
+                        email: updatedUser.email,
+                        subject: isExtension ? "VeriHire Premium Extended!" : "Welcome to VeriHire Premium!",
+                        title: isExtension ? "Stay Premium!" : "Upgrade Successful!",
+                        message: isExtension 
+                            ? `Dear ${updatedUser.username},\r\n\r\nYour premium status has been successfully extended until ${formattedDate}! You have received 120 additional scan tokens.\r\n\r\nYou now have a total of ${updatedUser.scanLimit} tokens available.`
+                            : `Dear ${updatedUser.username},\r\n\r\nYour account has been successfully upgraded! You have received 120 additional scan tokens.\r\n\r\nYou now have a total of ${updatedUser.scanLimit} tokens available.\r\n\r\nYour premium status is valid until ${formattedDate} (60 days from now).`,
+                        buttonText: "Get Started",
                         buttonLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/profile`
                     });
                 } catch (emailError) {
                     console.error("Webhook Email Error:", emailError.message);
                 }
             } else {
-                console.log("ERROR: User not found in database for ID:", userId);
+                console.log(`IDEMPOTENCY: Transaction ${transactionId} already processed. Skipping duplicate logic.`);
             }
-        } else {
-            console.log("Status ignored or not paid:", status);
         }
-    } else {
-        console.log("Ignoring Webhook: Description missing or mismatch.");
     }
 
     // Always respond 200 to Mayar to stop retries

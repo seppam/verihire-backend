@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  membershipExpires: {
+    type: Date,
+    default: null
+  },
   scanLimit: {
     type: Number,
     default: 20 // Free users get 20 tokens
@@ -53,6 +57,7 @@ const userSchema = new mongoose.Schema({
   },
   passwordResetToken: String,
   passwordResetExpires: Date,
+  processedTransactions: [{ type: String, default: [] }], // ID transaksi Mayar yang sudah diproses
 });
 
 // Middleware untuk hash password sebelum simpan
