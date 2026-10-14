@@ -19,9 +19,9 @@ const analyzeCvWithAI = async (cvText, jobTarget, lang = 'en') => {
         const systemPrompt = `
             You are an Expert Career Coach and Recruitment Analyst.
             Analyze the following CV text specifically against the Target Job.
-            
+
             TARGET JOB / ROLE: "${jobTarget || 'General Professional'}"
-            
+
             TASKS:
             1. Calculate a CV Match Score (0-100) based strictly on how well the CV fits the Target Job.
             2. Determine the match status (Low, Medium, High, Excellent).
@@ -34,7 +34,7 @@ const analyzeCvWithAI = async (cvText, jobTarget, lang = 'en') => {
             CRITICAL LANGUAGE RULES:
             - The overall analysis (strengths, weaknesses, improvement advice, job recommendations, and the 'reason' field) MUST BE in: ${lang === 'id' ? 'Indonesian' : 'English'}.
             - IMPORTANT FOR REPHRASING: First, automatically detect the language used in the CV TEXT. The "original" and "improved" strings inside "rephraseSuggestions" MUST BE written in the EXACT SAME LANGUAGE as the CV TEXT. NEVER translate the user's CV content into the UI language.
-            
+
             Return ONLY a pure JSON object using this exact structure:
             {
                 "cvMatchScore": 85,
@@ -60,8 +60,7 @@ const analyzeCvWithAI = async (cvText, jobTarget, lang = 'en') => {
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `CV TEXT:\n"${cvText}"` }
             ],
-            // temperature: 0.2, 
-            response_format: { type: "text" } 
+            response_format: { type: "text" }
         };
 
         const headers = {
@@ -70,12 +69,13 @@ const analyzeCvWithAI = async (cvText, jobTarget, lang = 'en') => {
             "Authorization": `Bearer ${process.env.ELICE_API_KEY}`
         };
 
-        const response = await axios.post(url, payload, { headers });
+        // Timeout: 30 seconds to avoid hanging connections
+        const response = await axios.post(url, payload, { headers, timeout: 30000 });
         const rawText = response.data.choices[0].message.content;
-        
+
         const cleanJsonText = rawText.replace(/```json|```/gi, "").trim();
         return JSON.parse(cleanJsonText);
-        
+
     } catch (error) {
         console.error("Elice CV Analysis Error:", error.response ? error.response.data : error.message);
         const errorMsg = lang === 'id' ? 'Gagal menganalisis CV dengan AI.' : 'Failed to analyze CV with AI.';

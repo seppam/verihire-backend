@@ -2,10 +2,9 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 const extractTextFromUrl = async (url, lang = 'en') => {
-    // 1. Siapkan Kamus Pesan (Dual Language)
     const messages = {
         en: {
-            denied: "Access denied by the website's security. Please provide data manually:\n1. Copy-Paste the job text into the input field, OR\n2. Save the webpage as a PDF and upload it, OR\n3. Take a screenshot of the job posting and upload the image (JPG/PNG).",
+            denied: "Access denied by the website's security. Please provide data manually:\n1. Copy-Paste the job text into the input field, OR\n2. Save the webpage as a PDF and upload it, OR\n3. Take a screenshot of the job posting and upload the photo (JPG/PNG).",
             timeout: "Connection timeout. The website might be down or protected by Cloudflare. Please use the Screenshot or Copy-Paste method.",
             failed: "Failed to extract text from the link. Please use the Screenshot (JPG/PNG) or PDF upload method.",
             empty: "The website content is too short or unreadable by the system. Please use the Copy-Paste text method."
@@ -21,7 +20,7 @@ const extractTextFromUrl = async (url, lang = 'en') => {
     const msg = messages[lang] || messages['en'];
 
     try {
-        const { data } = await axios.get(url, { 
+        const { data } = await axios.get(url, {
             timeout: 10000,
             headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
         });
@@ -34,10 +33,10 @@ const extractTextFromUrl = async (url, lang = 'en') => {
         if (text.length < 50) throw new Error(msg.empty);
         return text.substring(0, 2500);
     } catch (error) {
-        if (error.message === msg.empty) throw error; 
+        if (error.message === msg.empty) throw error;
         if (error.response?.status === 403) throw new Error(msg.denied);
         if (error.code === 'ECONNABORTED') throw new Error(msg.timeout);
-        throw new Error(msg.failed); 
+        throw new Error(msg.failed);
     }
 };
 
@@ -53,7 +52,7 @@ const analyzeContent = async (text, lang = 'en') => {
             - "Legit": Clear role, realistic requirements, standard application process, professional corporate contact info.
 
             Response Language MUST BE: ${lang === 'id' ? 'Indonesian' : 'English'}.
-            
+
             Return ONLY a pure JSON object with no markdown formatting.
             Ensure the keys 'score', 'verdict', 'flags', and 'recommendation' are present.
             Use this exact structure:
@@ -72,8 +71,7 @@ const analyzeContent = async (text, lang = 'en') => {
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `TEXT TO ANALYZE:\n"${text}"` }
             ],
-            // temperature: 0.1, // Dibuat sangat rendah agar format JSON konsisten
-            response_format: { type: "text" } 
+            response_format: { type: "text" }
         };
 
         const headers = {
@@ -82,10 +80,10 @@ const analyzeContent = async (text, lang = 'en') => {
             "Authorization": `Bearer ${process.env.ELICE_API_KEY}`
         };
 
-        const response = await axios.post(url, payload, { headers });
+        // Timeout: 30 seconds to avoid hanging connections
+        const response = await axios.post(url, payload, { headers, timeout: 30000 });
         const rawText = response.data.choices[0].message.content;
-        
-        // Membersihkan potensi markdown (```json ... ```) 
+
         const cleanJsonText = rawText.replace(/```json|```/gi, "").trim();
         return JSON.parse(cleanJsonText);
 

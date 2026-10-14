@@ -1,6 +1,6 @@
 module.exports = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
-  
+
   // Log error for developers (Terminal)
   if (process.env.NODE_ENV === "development") {
     console.error("🔥 Error Log:", err);
@@ -10,7 +10,7 @@ module.exports = (err, req, res, next) => {
   let message = err.message || "Internal Server Error.";
 
   // 1. JWT Errors (Authentication)
-  if (err.name === "JsonWebTokenError") {
+  if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
     statusCode = 401;
     message = "Invalid token, please login again.";
   }
@@ -44,7 +44,7 @@ module.exports = (err, req, res, next) => {
     statusCode = 400;
     message = "File too large! Maximum limit is 5MB.";
   }
-  
+
   // Error from multer file filter (manually thrown in the route)
   if (err.message.includes("format") || err.message.includes("supported")) {
     statusCode = 400;

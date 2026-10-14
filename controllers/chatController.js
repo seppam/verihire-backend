@@ -1,5 +1,5 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const catchAsync = require("../utils/catchAsync"); 
+const catchAsync = require("../utils/catchAsync");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const Chat = require("../models/Chat");
@@ -35,46 +35,50 @@ exports.getChatResponse = catchAsync(async (req, res) => {
         4. Practicality: When giving anti-scam advice, always include actionable steps (e.g., "Always check the company's official domain" or "Never transfer money for a job").
     `;
 
-    // HISTORY LOGIC (Synchronized with Elice)
     let chatContext = [];
-    if (req.user) {
-        let chat = await Chat.findOne({ userId: req.user._id });
-        if (!chat) chat = await Chat.create({ userId: req.user._id, messages: [] });
+    let chatDoc = null;
 
-        chat.messages.push({ role: 'user', content: message });
-        const lastMessages = chat.messages.slice(-10).map(msg => ({
+    // Load or create chat doc first (do NOT save user message yet)
+    if (req.user) {
+        chatDoc = await Chat.findOne({ userId: req.user._id });
+        if (!chatDoc) {
+            chatDoc = await Chat.create({ userId: req.user._id, messages: [] });
+        }
+
+        const lastMessages = chatDoc.messages.slice(-10).map(msg => ({
             role: msg.role,
             content: msg.content
         }));
 
         chatContext = [
             { role: "system", content: systemInstruction },
-            ...lastMessages
+            ...lastMessages,
+            { role: "user", content: message }
         ];
-        req.chatDoc = chat;
     } else {
         chatContext = [
-            { role: "system", content: systemInstruction.replace("Context Awareness", "Stateless Awareness: Assume each user message is a standalone question.") },
+            { role: "system", content: systemInstruction.replace("Context Awareness", "Stateless Awareness: Assume each message is a standalone question.") },
             { role: "user", content: message }
         ];
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-    
-    // Gemini handles history via contents array in startChat or generateContent
-    // For simplicity and direct parity with Elice's message array:
+
+    // Timeout: 30 seconds to avoid hanging connections
     const result = await model.generateContent({
         contents: chatContext.map(m => ({
             role: m.role === 'assistant' ? 'model' : m.role,
             parts: [{ text: m.content }]
         }))
-    });
+    }, { timeoutMs: 30000 });
 
     const replyText = result.response.text();
 
-    if (req.user && req.chatDoc) {
-        req.chatDoc.messages.push({ role: 'assistant', content: replyText });
-        await req.chatDoc.save();
+    // Save to DB ONLY after getting AI reply (prevents orphan messages)
+    if (chatDoc) {
+        chatDoc.messages.push({ role: 'user', content: message });
+        chatDoc.messages.push({ role: 'assistant', content: replyText });
+        await chatDoc.save();
     }
 
     res.status(200).json({ success: true, reply: replyText });
